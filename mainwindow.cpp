@@ -3,6 +3,7 @@
 
 
 
+int scoreCacheArray[INT32_MAX];
 
 MainWindow::MainWindow(QWidget *parent) :
   QMainWindow(parent),
@@ -207,7 +208,7 @@ void MainWindow::handleAIStep(){
       ui->gameStatus->setText(tr("平局！"));
     }
 qDebug()<<"step:"<<stepAlreadyMade;
-qDebug()<<"cache size:"<<scoreCache.size();
+qDebug()<<"cache size:"<<scoreCache.size()<<endl<<endl;
 }
 
 
@@ -507,68 +508,129 @@ void MainWindow::keyPressEvent(QKeyEvent *e){
   //走子
 
           step s(XStack[stepAlreadyMade],YStack[stepAlreadyMade]);
+          //记录各种模式的数量
+          int patternNum[10]={0,0,0,0,0,0,0,0,0,0};
 
           int score=0;
           //横向
-          QString line;
+          QString lineWhite;
+          QString lineBlack;
           for(int i=((s.x-5)>=0?(s.x-5):0);i<=((s.x+5)<=14?(s.x+5):14);++i){
-                          line+=QString::number(gomoku[i][s.y]);
-                  }
-        qDebug()<<"-:"<<line<<endl;
-          for(auto &p:lightPatterns){
-                          for(auto &wp:p.whitePattern){
-                                          score+=p.whiteScore*line.count(wp);
-                                  }
-                          for(auto &bp:p.blackPattern){
-                                          score+=p.blackScore*line.count(bp);
-                                  }
-                  }
+              if(i!=s.x){
+                lineWhite+=QString::number(gomoku[i][s.y]);
+                lineBlack+=QString::number(gomoku[i][s.y]);
+                }else{
+                  lineWhite+=QString::number(1);
+                  lineBlack+=QString::number(2);
+                }
+            }
+          qDebug()<<"-:"<<lineWhite<<endl;
+          for(auto &p:patterns){
+              for(auto &wp:p.whitePattern){
+                  int c=lineWhite.count(wp);
+                  score+=p.whiteScore*c;
+                  if(s.nowWhite){
+                      patternNum[p.id]+=c;
+                    }
+                }
+              for(auto &bp:p.blackPattern){
+                  int c=lineBlack.count(bp);
+                  score-=p.blackScore*c;
+                  if(!s.nowWhite){
+                      patternNum[p.id]+=c;
+                    }
+                }
+            }
           //纵向
-          line.clear();
+          lineWhite.clear();
+          lineBlack.clear();
           for(int i=((s.y-5)>=0?(s.y-5):0);i<=((s.y+5)<=14?(s.y+5):14);++i){
-                          line+=QString::number(gomoku[s.x][i]);
-                  }
-        qDebug()<<"|:"<<line<<endl;
-          for(auto &p:lightPatterns){
-                          for(auto &wp:p.whitePattern){
-                                          score+=p.whiteScore*line.count(wp);
-                                  }
-                          for(auto &bp:p.blackPattern){
-                                          score+=p.blackScore*line.count(bp);
-                                  }
-                  }
+
+              if(i!=s.y){
+                lineWhite+=QString::number(gomoku[s.x][i]);
+                lineBlack+=QString::number(gomoku[s.x][i]);
+                }else{
+                  lineWhite+=QString::number(1);
+                  lineBlack+=QString::number(2);
+                }
+            }
+          qDebug()<<"|:"<<lineWhite<<endl;
+          for(auto &p:patterns){
+              for(auto &wp:p.whitePattern){
+                  int c=lineWhite.count(wp);
+                  score+=p.whiteScore*c;
+                  patternNum[p.id]+=c;
+                }
+              for(auto &bp:p.blackPattern){
+                  int c=lineBlack.count(bp);
+                  score-=p.blackScore*c;
+                      patternNum[p.id]+=c;
+                }
+            }
           // \向
-          line.clear();
+          lineWhite.clear();
+          lineBlack.clear();
           for(int i=-5;i<=5;++i){
-                          if((s.x+i)<0||(s.y+i)<0)continue;
-                          if((s.x+i)>14||(s.y+i)>14)break;
-                          line+=QString::number(gomoku[s.x+i][s.y+i]);
-                  }
-        qDebug()<<"/:"<<line<<endl;
-          for(auto &p:lightPatterns){
-                          for(auto &wp:p.whitePattern){
-                                          score+=p.whiteScore*line.count(wp);
-                                  }
-                          for(auto &bp:p.blackPattern){
-                                          score+=p.blackScore*line.count(bp);
-                                  }
-                  }
+              if((s.x+i)<0||(s.y+i)<0)continue;
+              if((s.x+i)>14||(s.y+i)>14)break;
+              if(i!=0){
+                lineWhite+=QString::number(gomoku[s.x+i][s.y+i]);
+                lineBlack+=QString::number(gomoku[s.x+i][s.y+i]);
+                }else{
+                  lineWhite+=QString::number(1);
+                  lineBlack+=QString::number(2);
+                }
+            }
+          qDebug()<<"\\:"<<lineWhite<<endl;
+          for(auto &p:patterns){
+              for(auto &wp:p.whitePattern){
+                  int c=lineWhite.count(wp);
+                  score+=p.whiteScore*c;
+                      patternNum[p.id]+=c;
+                }
+              for(auto &bp:p.blackPattern){
+                  int c=lineBlack.count(bp);
+                  score-=p.blackScore*c;
+                      patternNum[p.id]+=c;
+                }
+            }
           //  /向
-          line.clear();
+          lineWhite.clear();
+          lineBlack.clear();
           for(int i=-5;i<=5;++i){
-                          if((s.x+i)<0||(s.y-i)>14)continue;
-                          if((s.y-i)<0||(s.x+i)>14)break;
-                          line+=QString::number(gomoku[s.x+i][s.y-i]);
-                  }
-        qDebug()<<"\\:"<<line<<endl;
-          for(auto &p:lightPatterns){
-                          for(auto &wp:p.whitePattern){
-                                          score+=p.whiteScore*line.count(wp);
-                                  }
-                          for(auto &bp:p.blackPattern){
-                                          score+=p.blackScore*line.count(bp);
-                                  }
-                  }
+              if((s.x+i)<0||(s.y-i)>14)continue;
+              if((s.y-i)<0||(s.x+i)>14)break;
+
+              if(i!=0){
+                lineWhite+=QString::number(gomoku[s.x+i][s.y-i]);
+                lineBlack+=QString::number(gomoku[s.x+i][s.y-i]);
+                }else{
+                  lineWhite+=QString::number(1);
+                  lineBlack+=QString::number(2);
+                }
+            }
+          qDebug()<<"/:"<<lineWhite<<endl;
+          for(auto &p:patterns){
+              for(auto &wp:p.whitePattern){
+                  int c=lineWhite.count(wp);
+                  score+=p.whiteScore*c;
+                      patternNum[p.id]+=c;
+                }
+              for(auto &bp:p.blackPattern){
+                  int c=lineBlack.count(bp);
+                  score-=p.blackScore*c;
+                      patternNum[p.id]+=c;
+                }
+            }
+
+
+          //算分
+          s.score=score;
+          qDebug()<<"current position socre:"<<score;
+          //有必杀棋后面都不用算了
+          if(patternNum[patternID::LongLink]>0){//||patternNum[patternID::Active4]>0||patternNum[patternID::Active3]>2){
+              qDebug()<<"found a best step"<<endl;
+            }
 }
 ////////////////////////////////////////////////////
 //              AI Object
@@ -578,11 +640,13 @@ void AI::getAINextStep(){
   qDebug()<<"started at:"<<QTime::currentTime().toString();
   qDebug()<<"SCORE:"<<alpha_beta(parentWindow->gomoku,0,-99999999,9999999);
   qDebug()<<count<<" chesses searched";
-  qDebug()<<"ended at:"<<QTime::currentTime().toString()<<endl;
+  qDebug()<<"ended at:"<<QTime::currentTime().toString();
   emit stepReady();
 
 }
 int AI::getChessScore(int chess[15][15],int leftEdge,int rightEdge,int upEdge,int downEdge){
+  int whitePatternNum[10]={0,0,0,0,0,0,0,0,0,0};
+  int blackPatternNum[10]={0,0,0,0,0,0,0,0,0,0};
   int score=0;
   //先分析行-
   for(int i=upEdge;i<=downEdge;++i){
@@ -591,7 +655,7 @@ int AI::getChessScore(int chess[15][15],int leftEdge,int rightEdge,int upEdge,in
           line+=QString::number(chess[j][i]);
         }
 //      if(debug)qDebug()<<"-:"<<line<<endl;
-      score+=getLineScore(line);
+      score+=getLineScore(line,whitePatternNum,blackPatternNum);
 
     }
   //分析列|
@@ -601,7 +665,7 @@ int AI::getChessScore(int chess[15][15],int leftEdge,int rightEdge,int upEdge,in
           line+=QString::number(chess[i][j]);
         }
 //      if(debug)qDebug()<<"|:"<<line<<endl;
-      score+=getLineScore(line);
+      score+=getLineScore(line,whitePatternNum,blackPatternNum);
 
     }
   //分析斜向下\
@@ -613,7 +677,7 @@ int AI::getChessScore(int chess[15][15],int leftEdge,int rightEdge,int upEdge,in
         }
       if(line.size()<5)break;
 //      if(debug)qDebug()<<"\\ down:"<<line<<endl;
-      score+=getLineScore(line);
+      score+=getLineScore(line,whitePatternNum,blackPatternNum);
 
     }
   //上半部分
@@ -624,7 +688,7 @@ int AI::getChessScore(int chess[15][15],int leftEdge,int rightEdge,int upEdge,in
         }
       if(line.size()<5)break;
 //      if(debug)qDebug()<<"\\ up:"<<line<<endl;
-      score+=getLineScore(line);
+      score+=getLineScore(line,whitePatternNum,blackPatternNum);
     }
 
   //分析斜向上/
@@ -636,7 +700,7 @@ int AI::getChessScore(int chess[15][15],int leftEdge,int rightEdge,int upEdge,in
         }
       if(line.size()<5)break;
 //      if(debug)qDebug()<<"/ up:"<<line<<endl;
-      score+=getLineScore(line);
+      score+=getLineScore(line,whitePatternNum,blackPatternNum);
     }
 
   //下半部分
@@ -647,7 +711,7 @@ int AI::getChessScore(int chess[15][15],int leftEdge,int rightEdge,int upEdge,in
         }
       if(line.size()<5)break;
 //      if(debug)qDebug()<<"/ down:"<<line<<endl;
-      score+=getLineScore(line);
+      score+=getLineScore(line,whitePatternNum,blackPatternNum);
 
     }
   //棋子的位置分计算
@@ -664,16 +728,37 @@ int AI::getChessScore(int chess[15][15],int leftEdge,int rightEdge,int upEdge,in
             }
         }
     }
+  if(whitePatternNum[0]>0||blackPatternNum[0]>0){
+      if(whitePatternNum[0]>blackPatternNum[0])return 9999999;
+      else return -9999999;
+    }
+  if(whitePatternNum[patternID::Active4]>0||blackPatternNum[patternID::Active4]>0){
+      if(whitePatternNum[patternID::Active4]>blackPatternNum[patternID::Active4])return 8999999;
+      else return -8999999;
+    }
+  if(whitePatternNum[patternID::Active3]>1||blackPatternNum[patternID::Active3]>1){
+      if(whitePatternNum[patternID::Active3]>blackPatternNum[patternID::Active3])return 8999999;
+      else return -8999999;
+    }
+  if(whitePatternNum[patternID::Active3]>0&&whitePatternNum[patternID::Sleep4]>0){
+      if(!(blackPatternNum[patternID::Active3]>0&&blackPatternNum[patternID::Sleep4]>0))return 8999999;
+      else return -8999999;
+    }
+
   return score;
 }
-int AI::getLineScore(QString line){
+int AI::getLineScore(QString line,int whitePatternNum[10],int blackPatternNum[15]){
   int score=0;
   for(auto &p:parentWindow->patterns){
       for(auto &wp:p.whitePattern){//电脑白子 加分
-          score+=p.whiteScore*line.count(wp);
+          int c=line.count(wp);
+          score+=p.whiteScore*c;
+          whitePatternNum[p.id]+=c;
         }
       for(auto &bp:p.blackPattern){//对手黑子 减分
-          score+=p.blackScore*line.count(bp);
+          int c=line.count(bp);
+          score+=p.blackScore*c;
+          blackPatternNum[p.id]+=c;
         }
     }
   return score;
@@ -692,123 +777,151 @@ std::vector<step> AI::getPossibleSteps(int chess[15][15],bool white,int leftEdge
 }
 
 //走法算分,用于排序
-void AI::calculateScore(std::vector<step> &possibleSteps, int chess[15][15]){
+bool AI::calculateScore(std::vector<step> &possibleSteps, int chess[15][15]){
 
 
   for(auto &s:possibleSteps){
       //记录各种模式的数量
       int patternNum[10]={0,0,0,0,0,0,0,0,0,0};
 
-      //走子
-      if(s.nowWhite)chess[s.x][s.y]=1;
-      else chess[s.x][s.y]=2;
-
       int score=0;
       //横向
-      QString line;
+      QString lineWhite;
+      QString lineBlack;
       for(int i=((s.x-5)>=0?(s.x-5):0);i<=((s.x+5)<=14?(s.x+5):14);++i){
-          line+=QString::number(chess[i][s.y]);
+          if(i!=s.x){
+            lineWhite+=QString::number(chess[i][s.y]);
+            lineBlack+=QString::number(chess[i][s.y]);
+            }else{
+              lineWhite+=QString::number(1);
+              lineBlack+=QString::number(2);
+            }
         }
 //      qDebug()<<"-:"<<line<<endl;
       for(auto &p:parentWindow->patterns){
           for(auto &wp:p.whitePattern){
-              int c=line.count(wp);
+              int c=lineWhite.count(wp);
               score+=p.whiteScore*c;
-              if(s.nowWhite){
                   patternNum[p.id]+=c;
-                }
             }
           for(auto &bp:p.blackPattern){
-              int c=line.count(bp);
-              score+=p.blackScore*c;
-              if(!s.nowWhite){
+              int c=lineBlack.count(bp);
+              score-=p.blackScore*c;
                   patternNum[p.id]+=c;
-                }
             }
         }
       //纵向
-      line.clear();
+      lineWhite.clear();
+      lineBlack.clear();
       for(int i=((s.y-5)>=0?(s.y-5):0);i<=((s.y+5)<=14?(s.y+5):14);++i){
-          line+=QString::number(chess[s.x][i]);
+
+          if(i!=s.y){
+            lineWhite+=QString::number(chess[s.x][i]);
+            lineBlack+=QString::number(chess[s.x][i]);
+            }else{
+              lineWhite+=QString::number(1);
+              lineBlack+=QString::number(2);
+            }
         }
 //      qDebug()<<"|:"<<line<<endl;
       for(auto &p:parentWindow->patterns){
           for(auto &wp:p.whitePattern){
-              int c=line.count(wp);
+              int c=lineWhite.count(wp);
               score+=p.whiteScore*c;
-              if(s.nowWhite){
-                  patternNum[p.id]+=c;
-                }
+              patternNum[p.id]+=c;
             }
           for(auto &bp:p.blackPattern){
-              int c=line.count(bp);
-              score+=p.blackScore*c;
-              if(!s.nowWhite){
+              int c=lineBlack.count(bp);
+              score-=p.blackScore*c;
                   patternNum[p.id]+=c;
-                }
             }
         }
       // \向
-      line.clear();
+      lineWhite.clear();
+      lineBlack.clear();
       for(int i=-5;i<=5;++i){
           if((s.x+i)<0||(s.y+i)<0)continue;
           if((s.x+i)>14||(s.y+i)>14)break;
-          line+=QString::number(chess[s.x+i][s.y+i]);
+          if(i!=0){
+            lineWhite+=QString::number(chess[s.x+i][s.y+i]);
+            lineBlack+=QString::number(chess[s.x+i][s.y+i]);
+            }else{
+              lineWhite+=QString::number(1);
+              lineBlack+=QString::number(2);
+            }
         }
 //      qDebug()<<"\\:"<<line<<endl;
       for(auto &p:parentWindow->patterns){
           for(auto &wp:p.whitePattern){
-              int c=line.count(wp);
+              int c=lineWhite.count(wp);
               score+=p.whiteScore*c;
-              if(s.nowWhite){
                   patternNum[p.id]+=c;
-                }
             }
           for(auto &bp:p.blackPattern){
-              int c=line.count(bp);
-              score+=p.blackScore*c;
-              if(!s.nowWhite){
+              int c=lineBlack.count(bp);
+              score-=p.blackScore*c;
                   patternNum[p.id]+=c;
-                }
             }
         }
       //  /向
-      line.clear();
+      lineWhite.clear();
+      lineBlack.clear();
       for(int i=-5;i<=5;++i){
           if((s.x+i)<0||(s.y-i)>14)continue;
           if((s.y-i)<0||(s.x+i)>14)break;
-          line+=QString::number(chess[s.x+i][s.y-i]);
+
+          if(i!=0){
+            lineWhite+=QString::number(chess[s.x+i][s.y-i]);
+            lineBlack+=QString::number(chess[s.x+i][s.y-i]);
+            }else{
+              lineWhite+=QString::number(1);
+              lineBlack+=QString::number(2);
+            }
         }
 //      qDebug()<<"/:"<<line<<endl;
       for(auto &p:parentWindow->patterns){
           for(auto &wp:p.whitePattern){
-              int c=line.count(wp);
+              int c=lineWhite.count(wp);
               score+=p.whiteScore*c;
-              if(s.nowWhite){
                   patternNum[p.id]+=c;
-                }
             }
           for(auto &bp:p.blackPattern){
-              int c=line.count(bp);
-              score+=p.blackScore*c;
-              if(!s.nowWhite){
+              int c=lineBlack.count(bp);
+              score-=p.blackScore*c;
                   patternNum[p.id]+=c;
-                }
             }
         }
 
+
       //算分
       s.score=score;
-      chess[s.x][s.y]=0;//恢复棋盘
       //有必杀棋后面都不用算了
       if(patternNum[patternID::LongLink]>0){//||patternNum[patternID::Active4]>0||patternNum[patternID::Active3]>2){
           auto bestStep=s;
           possibleSteps.clear();
           possibleSteps.push_back(bestStep);
 //          qDebug()<<"found a best step"<<endl;
+          return true;
           break;
         }
    }
+  return false;
+}
+void AI::deleteUselessStep(std::vector<step> &possibleSteps,int chess[15][15]){
+  for(auto ite=possibleSteps.begin();ite!=possibleSteps.end();){
+      int counter=0;
+      chess[ite->x][ite->y]=3;//测试用子,表示这里有一个子反正不是0
+      for(int i=((ite->x-2)>0?(ite->x-2):0);i<=((ite->x+2)<14?(ite->x+2):14);++i){
+          for(int j=((ite->y-2)>0?(ite->y-2):0);j<=((ite->y+2)<14?(ite->y+2):14);++j){
+              if(chess[i][j]!=0)++counter;
+            }
+        }
+      chess[ite->x][ite->y]=0;
+      if(counter>1)++ite;
+      else{
+          ite=possibleSteps.erase(ite);
+        }
+    }
 }
 int AI::alpha_beta(int chess[15][15], int depth, int alpha, int beta){
   if(depth==parentWindow->searchDepth){
@@ -832,13 +945,13 @@ int AI::alpha_beta(int chess[15][15], int depth, int alpha, int beta){
   int score=0;
   //获得所有走法
   if(depth%2==0){//最大层
-      if(parentWindow->stepAlreadyMade>18)possibleSteps=getPossibleSteps(chess,true);
+      if(parentWindow->stepAlreadyMade>22)possibleSteps=getPossibleSteps(chess,true);
       else if(parentWindow->stepAlreadyMade>10){
           possibleSteps=getPossibleSteps(chess,true,
-                                         2-(parentWindow->stepAlreadyMade-10)/4,
-                                         12+(parentWindow->stepAlreadyMade-10)/4,
-                                         2-(parentWindow->stepAlreadyMade-10)/4,
-                                         12+(parentWindow->stepAlreadyMade-10)/4);
+                                         3-(parentWindow->stepAlreadyMade-10)/4,
+                                         11+(parentWindow->stepAlreadyMade-10)/4,
+                                         3-(parentWindow->stepAlreadyMade-10)/4,
+                                         11+(parentWindow->stepAlreadyMade-10)/4);
         }
       else{
           possibleSteps=getPossibleSteps(chess,true,
@@ -850,21 +963,18 @@ int AI::alpha_beta(int chess[15][15], int depth, int alpha, int beta){
 
 
       //对走法进行排序
-//      int sX=parentWindow->XStack[parentWindow->stepAlreadyMade];
-//      int sY=parentWindow->YStack[parentWindow->stepAlreadyMade];
-//      std::sort(possibleSteps.begin(),possibleSteps.end(),[sX,sY](const step& s1, const step& s2)->bool{
-//          int d1=sqrt(abs(s1.x-sX)*abs(s1.x-sX)+abs(s1.y-sY)*abs(s1.y-sY));
-//          int d2=sqrt(abs(s2.x-sX)*abs(s2.x-sX)+abs(s2.y-sY)*abs(s2.y-sY));
-//          return d1<d2;
-//        });
       //新排序法
+      deleteUselessStep(possibleSteps,parentWindow->gomoku);
       calculateScore(possibleSteps,parentWindow->gomoku);
+      if(calculateScore(possibleSteps,parentWindow->gomoku)&&depth==0){
+          parentWindow->AINextX=possibleSteps[0].x;
+          parentWindow->AINextY=possibleSteps[0].y;
+          return 9999999;
+        }
       std::sort(possibleSteps.begin(),possibleSteps.end(),[](const step& s1, const step& s2)->bool{
           return s1.score>s2.score;
         });
 
-
-//      qDebug()<<"now max layer "<<possibleSteps.size()<<"possible steps"<<endl;
       int count=0;
       for(auto &s:possibleSteps){
 //          if(depth==0)qDebug()<<"now searching step "<<++count<<endl;
@@ -890,13 +1000,13 @@ int AI::alpha_beta(int chess[15][15], int depth, int alpha, int beta){
           }
         }
     }else{//最小层
-      if(parentWindow->stepAlreadyMade>18)possibleSteps=getPossibleSteps(chess,false);
+      if(parentWindow->stepAlreadyMade>22)possibleSteps=getPossibleSteps(chess,false);
       else if(parentWindow->stepAlreadyMade>10){
           possibleSteps=getPossibleSteps(chess,true,
-                                         2-(parentWindow->stepAlreadyMade-10)/4,
-                                         12+(parentWindow->stepAlreadyMade-10)/4,
-                                         2-(parentWindow->stepAlreadyMade-10)/4,
-                                         12+(parentWindow->stepAlreadyMade-10)/4);
+                                         3-(parentWindow->stepAlreadyMade-10)/4,
+                                         11+(parentWindow->stepAlreadyMade-10)/4,
+                                         3-(parentWindow->stepAlreadyMade-10)/4,
+                                         11+(parentWindow->stepAlreadyMade-10)/4);
         }
       else{
           possibleSteps=getPossibleSteps(chess,false,
@@ -908,17 +1018,14 @@ int AI::alpha_beta(int chess[15][15], int depth, int alpha, int beta){
 
 
       //对走法进行排序
-//      int sX=parentWindow->XStack[parentWindow->stepAlreadyMade];
-//      int sY=parentWindow->YStack[parentWindow->stepAlreadyMade];
-//      std::sort(possibleSteps.begin(),possibleSteps.end(),[sX,sY](const step& s1, const step& s2)->bool{
-//          int d1=sqrt(abs(s1.x-sX)*abs(s1.x-sX)+abs(s1.y-sY)*abs(s1.y-sY));
-//          int d2=sqrt(abs(s2.x-sX)*abs(s2.x-sX)+abs(s2.y-sY)*abs(s2.y-sY));
-//          return d1<d2;
-//        });
       //新排序法
+      deleteUselessStep(possibleSteps,parentWindow->gomoku);
       calculateScore(possibleSteps,parentWindow->gomoku);
+//      if(calculateScore(possibleSteps,parentWindow->gomoku)){
+//          return -9999999;
+//        }
       std::sort(possibleSteps.begin(),possibleSteps.end(),[](const step& s1, const step& s2)->bool{
-          return s1.score<s2.score;
+          return s1.score>s2.score;
         });
 
 
