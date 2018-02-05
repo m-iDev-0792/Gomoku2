@@ -3,7 +3,6 @@
 
 
 
-int scoreCacheArray[INT32_MAX];
 
 MainWindow::MainWindow(QWidget *parent) :
   QMainWindow(parent),
@@ -23,7 +22,8 @@ MainWindow::MainWindow(QWidget *parent) :
   steps=0;
   debug=false;
   AIIsThinking=false;
-  searchDepth=4;
+  searchDepth=5;
+  killStepSearchDepth=7;
   stepAlreadyMade=0;
   initPattern();
   //初始化Zobrist
@@ -357,7 +357,7 @@ void MainWindow::initPattern(){
   //长联
   temp.id=patternID::LongLink;
   temp.whiteScore=100000;
-  temp.blackScore=-101000;
+  temp.blackScore=-100000;
   temp.blackPattern.push_back("22222");
   temp.whitePattern.push_back("11111");
   patterns.push_back(temp);
@@ -365,7 +365,7 @@ void MainWindow::initPattern(){
   //活四
   temp.clear();
   temp.whiteScore=10000;
-  temp.blackScore=-10100;
+  temp.blackScore=-10000;
   temp.id=patternID::Active4;
   temp.whitePattern.push_back("011110");
   temp.blackPattern.push_back("022220");
@@ -391,8 +391,8 @@ void MainWindow::initPattern(){
 
   //活三
   temp.clear();
-  temp.whiteScore=200;
-  temp.blackScore=-200;
+  temp.whiteScore=500;
+  temp.blackScore=-500;
   temp.id=patternID::Active3;
   temp.whitePattern.push_back("011100");
   temp.whitePattern.push_back("001110");
@@ -728,17 +728,26 @@ int AI::getChessScore(int chess[15][15],int leftEdge,int rightEdge,int upEdge,in
             }
         }
     }
+
+  //必杀棋
   if(whitePatternNum[0]>0||blackPatternNum[0]>0){
       if(whitePatternNum[0]>blackPatternNum[0])return 9999999;
       else return -9999999;
     }
-  if(whitePatternNum[patternID::Active4]>0||blackPatternNum[patternID::Active4]>0){
-      if(whitePatternNum[patternID::Active4]>blackPatternNum[patternID::Active4])return 8999999;
-      else return -8999999;
+  if(blackPatternNum[patternID::Active4]>0)return -8999999;
+  if(whitePatternNum[patternID::Active4]>0)return 8999999;
+
+  if(blackPatternNum[patternID::Active3]>0){
+      //奇数是黑方准备落子,偶数是白方准备落子
+      //如果黑方有活三,且是奇数局面,黑方无敌
+      if(parentWindow->searchDepth%2==1)return -8999999;
+      else{
+          if(whitePatternNum[patternID::Active3]>=blackPatternNum[patternID::Active3])
+            return 8999999;
+        }
     }
-  if(whitePatternNum[patternID::Active3]>1||blackPatternNum[patternID::Active3]>1){
-      if(whitePatternNum[patternID::Active3]>blackPatternNum[patternID::Active3])return 8999999;
-      else return -8999999;
+  if(whitePatternNum[patternID::Active3]>1){
+      return -8999999;
     }
   if(whitePatternNum[patternID::Active3]>0&&whitePatternNum[patternID::Sleep4]>0){
       if(!(blackPatternNum[patternID::Active3]>0&&blackPatternNum[patternID::Sleep4]>0))return 8999999;
@@ -896,14 +905,14 @@ bool AI::calculateScore(std::vector<step> &possibleSteps, int chess[15][15]){
       //算分
       s.score=score;
       //有必杀棋后面都不用算了
-      if(patternNum[patternID::LongLink]>0){//||patternNum[patternID::Active4]>0||patternNum[patternID::Active3]>2){
-          auto bestStep=s;
-          possibleSteps.clear();
-          possibleSteps.push_back(bestStep);
-//          qDebug()<<"found a best step"<<endl;
-          return true;
-          break;
-        }
+//      if(patternNum[patternID::LongLink]>0){//||patternNum[patternID::Active4]>0||patternNum[patternID::Active3]>2){
+//          auto bestStep=s;
+//          possibleSteps.clear();
+//          possibleSteps.push_back(bestStep);
+//          return true;
+//          break;
+//        }
+
    }
   return false;
 }
@@ -923,10 +932,164 @@ void AI::deleteUselessStep(std::vector<step> &possibleSteps,int chess[15][15]){
         }
     }
 }
+
+//集成算杀
+bool AI::reserveKillStep(std::vector<step> &possibleSteps, int chess[15][15]){
+
+  for(auto s=possibleSteps.begin();s!=possibleSteps.end();){
+      //先看看是不是太偏的废棋
+      int counter=0;
+      chess[s->x][s->y]=3;//测试用子,表示这里有一个子反正不是0
+      for(int i=((s->x-2)>0?(s->x-2):0);i<=((s->x+2)<14?(s->x+2):14);++i){
+          for(int j=((s->y-2)>0?(s->y-2):0);j<=((s->y+2)<14?(s->y+2):14);++j){
+              if(chess[i][j]!=0)++counter;
+            }
+        }
+      chess[s->x][s->y]=0;
+      if(counter<=1){
+          s=possibleSteps.erase(s);
+          continue;
+        }
+
+
+      //记录各种模式的数量
+      int patternNum[10]={0,0,0,0,0,0,0,0,0,0};
+
+      int score=0;
+      //横向
+      QString lineWhite;
+      QString lineBlack;
+      for(int i=((s->x-5)>=0?(s->x-5):0);i<=((s->x+5)<=14?(s->x+5):14);++i){
+          if(i!=s->x){
+            lineWhite+=QString::number(chess[i][s->y]);
+            lineBlack+=QString::number(chess[i][s->y]);
+            }else{
+              lineWhite+=QString::number(1);
+              lineBlack+=QString::number(2);
+            }
+        }
+//      qDebug()<<"-:"<<line<<endl;
+      for(auto &p:parentWindow->patterns){
+          for(auto &wp:p.whitePattern){
+              int c=lineWhite.count(wp);
+              score+=p.whiteScore*c;
+                  patternNum[p.id]+=c;
+            }
+          for(auto &bp:p.blackPattern){
+              int c=lineBlack.count(bp);
+              score-=p.blackScore*c;
+                  patternNum[p.id]+=c;
+            }
+        }
+      //纵向
+      lineWhite.clear();
+      lineBlack.clear();
+      for(int i=((s->y-5)>=0?(s->y-5):0);i<=((s->y+5)<=14?(s->y+5):14);++i){
+
+          if(i!=s->y){
+            lineWhite+=QString::number(chess[s->x][i]);
+            lineBlack+=QString::number(chess[s->x][i]);
+            }else{
+              lineWhite+=QString::number(1);
+              lineBlack+=QString::number(2);
+            }
+        }
+//      qDebug()<<"|:"<<line<<endl;
+      for(auto &p:parentWindow->patterns){
+          for(auto &wp:p.whitePattern){
+              int c=lineWhite.count(wp);
+              score+=p.whiteScore*c;
+              patternNum[p.id]+=c;
+            }
+          for(auto &bp:p.blackPattern){
+              int c=lineBlack.count(bp);
+              score-=p.blackScore*c;
+                  patternNum[p.id]+=c;
+            }
+        }
+      // \向
+      lineWhite.clear();
+      lineBlack.clear();
+      for(int i=-5;i<=5;++i){
+          if((s->x+i)<0||(s->y+i)<0)continue;
+          if((s->x+i)>14||(s->y+i)>14)break;
+          if(i!=0){
+            lineWhite+=QString::number(chess[s->x+i][s->y+i]);
+            lineBlack+=QString::number(chess[s->x+i][s->y+i]);
+            }else{
+              lineWhite+=QString::number(1);
+              lineBlack+=QString::number(2);
+            }
+        }
+//      qDebug()<<"\\:"<<line<<endl;
+      for(auto &p:parentWindow->patterns){
+          for(auto &wp:p.whitePattern){
+              int c=lineWhite.count(wp);
+              score+=p.whiteScore*c;
+                  patternNum[p.id]+=c;
+            }
+          for(auto &bp:p.blackPattern){
+              int c=lineBlack.count(bp);
+              score-=p.blackScore*c;
+                  patternNum[p.id]+=c;
+            }
+        }
+      //  /向
+      lineWhite.clear();
+      lineBlack.clear();
+      for(int i=-5;i<=5;++i){
+          if((s->x+i)<0||(s->y-i)>14)continue;
+          if((s->y-i)<0||(s->x+i)>14)break;
+
+          if(i!=0){
+            lineWhite+=QString::number(chess[s->x+i][s->y-i]);
+            lineBlack+=QString::number(chess[s->x+i][s->y-i]);
+            }else{
+              lineWhite+=QString::number(1);
+              lineBlack+=QString::number(2);
+            }
+        }
+//      qDebug()<<"/:"<<line<<endl;
+      for(auto &p:parentWindow->patterns){
+          for(auto &wp:p.whitePattern){
+              int c=lineWhite.count(wp);
+              score+=p.whiteScore*c;
+                  patternNum[p.id]+=c;
+            }
+          for(auto &bp:p.blackPattern){
+              int c=lineBlack.count(bp);
+              score-=p.blackScore*c;
+                  patternNum[p.id]+=c;
+            }
+        }
+
+
+      //算分
+      s->score=score;
+      //有必杀棋后面都不用算了
+      if(patternNum[patternID::LongLink]>0){//||patternNum[patternID::Active4]>0||patternNum[patternID::Active3]>2){
+          auto bestStep=*s;
+          possibleSteps.clear();
+          possibleSteps.push_back(bestStep);
+//          qDebug()<<"found a best step"<<endl;
+          return true;
+          break;
+        }
+      //开始算杀
+      if(patternNum[patternID::Active3]>=1||patternNum[patternID::Sleep4]>=1){
+          ++s;
+        }else{
+          //没有活3和眠4的删除
+          s=possibleSteps.erase(s);
+          continue;
+        }
+   }
+  return false;
+}
 int AI::alpha_beta(int chess[15][15], int depth, int alpha, int beta){
   if(depth==parentWindow->searchDepth){
 
-      ++count;
+      ++count;//计算总步数
       //没有缓存的版本
 //      int s=getChessScore(chess);
 //      return s;
@@ -961,22 +1124,36 @@ int AI::alpha_beta(int chess[15][15], int depth, int alpha, int beta){
                                          8+parentWindow->stepAlreadyMade/2.5);
         }
 
-
       //对走法进行排序
       //新排序法
-      deleteUselessStep(possibleSteps,parentWindow->gomoku);
+//      deleteUselessStep(possibleSteps,parentWindow->gomoku);
       calculateScore(possibleSteps,parentWindow->gomoku);
-      if(calculateScore(possibleSteps,parentWindow->gomoku)&&depth==0){
-          parentWindow->AINextX=possibleSteps[0].x;
-          parentWindow->AINextY=possibleSteps[0].y;
-          return 9999999;
-        }
+//      if(calculateScore(possibleSteps,parentWindow->gomoku)&&depth==0){
+//          parentWindow->AINextX=possibleSteps[0].x;
+//          parentWindow->AINextY=possibleSteps[0].y;
+//          return 9999999;
+//          }
       std::sort(possibleSteps.begin(),possibleSteps.end(),[](const step& s1, const step& s2)->bool{
           return s1.score>s2.score;
         });
 
+      if(possibleSteps.size()>10){//删除分数较低的节点试试看
+          possibleSteps.erase(possibleSteps.begin()+10,possibleSteps.end());
+        }
+
+//      if(depth<=parentWindow->searchDepth){
+//      if(possibleSteps.size()>10){//删除分数较低的节点试试看
+//          possibleSteps.erase(possibleSteps.begin()+10,possibleSteps.end());
+//        }
+//        }else{
+//          if(possibleSteps.size()>7){//删除分数较低的节点试试看
+//              possibleSteps.erase(possibleSteps.begin()+7,possibleSteps.end());
+//            }
+//        }
+
       int count=0;
       for(auto &s:possibleSteps){
+          ++count;
 //          if(depth==0)qDebug()<<"now searching step "<<++count<<endl;
         chess[s.x][s.y]=1;//走子
         parentWindow->zobristHash^=parentWindow->zobristWhite[s.x][s.y];
@@ -1018,16 +1195,18 @@ int AI::alpha_beta(int chess[15][15], int depth, int alpha, int beta){
 
 
       //对走法进行排序
+
       //新排序法
-      deleteUselessStep(possibleSteps,parentWindow->gomoku);
+//      deleteUselessStep(possibleSteps,parentWindow->gomoku);
       calculateScore(possibleSteps,parentWindow->gomoku);
-//      if(calculateScore(possibleSteps,parentWindow->gomoku)){
-//          return -9999999;
-//        }
+
       std::sort(possibleSteps.begin(),possibleSteps.end(),[](const step& s1, const step& s2)->bool{
           return s1.score>s2.score;
         });
 
+      if(possibleSteps.size()>10){//删除分数较低的节点试试看
+          possibleSteps.erase(possibleSteps.begin()+10,possibleSteps.end());
+        }
 
 
       for(auto &s:possibleSteps){

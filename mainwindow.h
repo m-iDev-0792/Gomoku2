@@ -81,6 +81,7 @@ public slots:
   int alpha_beta(int chess[15][15], int depth, int alpha, int beta);
   bool calculateScore(std::vector<step>& possibleSteps,int chess[15][15]);
   void deleteUselessStep(std::vector<step>& possibleSteps,int chess[15][15]);
+  bool reserveKillStep(std::vector<step>& possibleSteps,int chess[15][15]);
   signals:
   void stepReady();
 };
@@ -104,6 +105,7 @@ private:
   QThread AIThread;
   bool gameOver;
   int searchDepth;//搜索深度,应当是偶数
+  int killStepSearchDepth;
   int stepAlreadyMade;//已经走的步数
   Ui::MainWindow *ui;
   const int gap=20;
